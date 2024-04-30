@@ -104,7 +104,7 @@ async def detect_language(
 
 @app.get("/get-models-languages", tags=["Endpoints"])
 async def get_models_languages():
-    return {"models": AVAILABLE_MODELS, "languages": LANGUAGE_CODES}
+    return {"models": AVAILABLE_MODELS, "languages": {tokenizer.LANGUAGES[x]: x for x in LANGUAGE_CODES}}
 
 
 def load_audio(file: BinaryIO, encode=True, sr: int = SAMPLE_RATE):

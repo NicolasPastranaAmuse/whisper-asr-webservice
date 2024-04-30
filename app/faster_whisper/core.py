@@ -22,20 +22,14 @@ else:
     device = "cpu"
     model_quantization = os.getenv("ASR_QUANTIZATION", "int8")
 
-_model_name = None
-_model = None
 
 def get_model(model_name):
-    global _model, _model_name
-    if _model_name != model_name:
-        _model = WhisperModel(
-            model_size_or_path=model_name,
-            device=device,
-            compute_type=model_quantization,
-            download_root=model_path
-        )
-        _model_name = model_name
-    return _model
+    return WhisperModel(
+        model_size_or_path=model_name,
+        device=device,
+        compute_type=model_quantization,
+        download_root=model_path
+    )
 
 
 model_lock = Lock()
