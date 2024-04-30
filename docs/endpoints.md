@@ -6,12 +6,14 @@ There are 2 endpoints available:
 
 - [/asr](##Automatic-Speech-recognition-service-/asr) (Automatic Speech Recognition)
 - [/detect-language](##Language-detection-service-/detect-language)
+- [/get_models_languages](##Get-available-models-and-languages-/get-models-languages)
 
 ## Automatic speech recognition service /asr
 
 - 2 task choices:
   - **transcribe**: (default) task, transcribes the uploaded file.
   - **translate**: will provide an English transcript no matter which language was spoken.
+- You can switch the model name to use using the model_name Query param
 - Files are automatically converted with FFmpeg.
   - Full list of supported [audio](https://ffmpeg.org/general.html#Audio-Codecs) and [video](https://ffmpeg.org/general.html#Video-Codecs) formats.
 - You can enable word level timestamps output by `word_timestamps` parameter
@@ -22,6 +24,7 @@ There are 2 endpoints available:
 | Name            | Values                                         |
 |-----------------|------------------------------------------------|
 | audio_file      | File                                           |
+| model_name      | `base` (default), `tiny`, `small`, ...         |
 | output          | `text` (default), `json`, `vtt`, `strt`, `tsv` |
 | task            | `transcribe`, `translate`                      |
 | language        | `en` (default is auto recognition)             |
@@ -47,3 +50,11 @@ Returns a json with following fields:
 
 - **detected_language**: "english"
 - **language_code**: "en"
+
+
+## Get available models and languages /get-models-languages
+
+Returns the json with the following fields:
+
+- **models**: list of the available model names
+- **languages**: list of the available languages

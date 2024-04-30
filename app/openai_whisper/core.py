@@ -7,18 +7,30 @@ import torch
 import whisper
 from whisper.utils import ResultWriter, WriteTXT, WriteSRT, WriteVTT, WriteTSV, WriteJSON
 
-model_name = os.getenv("ASR_MODEL", "base")
+env_model_name = os.getenv("ASR_MODEL", "base")
 model_path = os.getenv("ASR_MODEL_PATH", os.path.join(os.path.expanduser("~"), ".cache", "whisper"))
 
-if torch.cuda.is_available():
-    model = whisper.load_model(model_name, download_root=model_path).cuda()
-else:
-    model = whisper.load_model(model_name, download_root=model_path)
+_model = None
+_model_name = None
+
+
+def get_model(model_name):
+    global _model, _model_name
+    if _model_name != model_name:
+        _model_name = model_name
+        if torch.cuda.is_available():
+            _model = whisper.load_model(model_name, download_root=model_path).cuda()
+        else:
+            _model = whisper.load_model(model_name, download_root=model_path)
+    return _model
+
+
 model_lock = Lock()
 
 
 def transcribe(
         audio,
+        model_name: Union[str, None],
         task: Union[str, None],
         language: Union[str, None],
         initial_prompt: Union[str, None],
@@ -33,14 +45,16 @@ def transcribe(
         options_dict["initial_prompt"] = initial_prompt
     if word_timestamps:
         options_dict["word_timestamps"] = word_timestamps
+    if model_name is None:
+        model_name = env_model_name
     with model_lock:
-        result = model.transcribe(audio, **options_dict)
+        result = get_model(model_name).transcribe(audio, **options_dict)
 
     output_file = StringIO()
     write_result(result, output_file, output)
     output_file.seek(0)
 
-    return output_file
+    return output_file, result['language']
 
 
 def language_detection(audio):

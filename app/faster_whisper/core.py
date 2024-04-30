@@ -10,7 +10,7 @@ from faster_whisper import WhisperModel
 from .utils import ResultWriter, WriteTXT, WriteSRT, WriteVTT, WriteTSV, WriteJSON
 
 
-model_name = os.getenv("ASR_MODEL", "base")
+env_model_name = os.getenv("ASR_MODEL", "base")
 model_path = os.getenv("ASR_MODEL_PATH", os.path.join(os.path.expanduser("~"), ".cache", "whisper"))
 
 # More about available quantization levels is here:
@@ -22,17 +22,27 @@ else:
     device = "cpu"
     model_quantization = os.getenv("ASR_QUANTIZATION", "int8")
 
-model = WhisperModel(
-    model_size_or_path=model_name,
-    device=device,
-    compute_type=model_quantization,
-    download_root=model_path
-)
+_model_name = None
+_model = None
+
+def get_model(model_name):
+    global _model, _model_name
+    if _model_name != model_name:
+        _model = WhisperModel(
+            model_size_or_path=model_name,
+            device=device,
+            compute_type=model_quantization,
+            download_root=model_path
+        )
+        _model_name = model_name
+    return _model
+
 
 model_lock = Lock()
 
 def transcribe(
         audio,
+        model_name: Union[str, None],
         task: Union[str, None],
         language: Union[str, None],
         initial_prompt: Union[str, None],
@@ -49,10 +59,12 @@ def transcribe(
         options_dict["vad_filter"] = True
     if word_timestamps:
         options_dict["word_timestamps"] = True
+    if model_name is None:
+        model_name = env_model_name
     with model_lock:
         segments = []
         text = ""
-        segment_generator, info = model.transcribe(audio, beam_size=5, **options_dict)
+        segment_generator, info = get_model(model_name).transcribe(audio, beam_size=5, **options_dict)
         for segment in segment_generator:
             segments.append(segment)
             text = text + segment.text
@@ -66,7 +78,7 @@ def transcribe(
     write_result(result, output_file, output)
     output_file.seek(0)
 
-    return output_file
+    return output_file, info.language
 
 
 def language_detection(audio):

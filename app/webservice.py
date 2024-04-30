@@ -9,7 +9,7 @@ from fastapi import FastAPI, File, UploadFile, Query, applications
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import StreamingResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from whisper import tokenizer
+from whisper import tokenizer, available_models
 from urllib.parse import quote
 
 ASR_ENGINE = os.getenv("ASR_ENGINE", "openai_whisper")
@@ -20,6 +20,7 @@ else:
 
 SAMPLE_RATE = 16000
 LANGUAGE_CODES = sorted(list(tokenizer.LANGUAGES.keys()))
+AVAILABLE_MODELS = available_models()
 
 projectMetadata = importlib.metadata.metadata('whisper-asr-webservice')
 app = FastAPI(
@@ -62,6 +63,8 @@ async def index():
 @app.post("/asr", tags=["Endpoints"])
 async def asr(
         audio_file: UploadFile = File(...),
+        model_name: Union[str, None] = Query(default="base", enum=AVAILABLE_MODELS,
+                                             description="Name of the model to use"),
         encode: bool = Query(default=True, description="Encode audio first through ffmpeg"),
         task: Union[str, None] = Query(default="transcribe", enum=["transcribe", "translate"]),
         language: Union[str, None] = Query(default=None, enum=LANGUAGE_CODES),
@@ -73,13 +76,18 @@ async def asr(
         word_timestamps: bool = Query(default=False, description="Word level timestamps"),
         output: Union[str, None] = Query(default="txt", enum=["txt", "vtt", "srt", "tsv", "json"])
 ):
-    result = transcribe(load_audio(audio_file.file, encode), task, language, initial_prompt, vad_filter, word_timestamps, output)
+    result, detected_lang_code = transcribe(
+        load_audio(audio_file.file, encode),
+        model_name, task, language, initial_prompt, vad_filter, word_timestamps, output
+    )
     return StreamingResponse(
     result,
     media_type="text/plain",
     headers={
         'Asr-Engine': ASR_ENGINE,
-        'Content-Disposition': f'attachment; filename="{quote(audio_file.filename)}.{output}"'
+        'Content-Disposition': f'attachment; filename="{quote(audio_file.filename)}.{output}"',
+        'detected_language': tokenizer.LANGUAGES[detected_lang_code],
+        'language_code': detected_lang_code,
     }
 )
 
@@ -90,7 +98,13 @@ async def detect_language(
         encode: bool = Query(default=True, description="Encode audio first through FFmpeg")
 ):
     detected_lang_code = language_detection(load_audio(audio_file.file, encode))
-    return {"detected_language": tokenizer.LANGUAGES[detected_lang_code], "language_code": detected_lang_code}
+    return {"detected_language": tokenizer.LANGUAGES[detected_lang_code],
+            "language_code": detected_lang_code}
+
+
+@app.get("/get-models-languages", tags=["Endpoints"])
+async def get_models_languages():
+    return {"models": AVAILABLE_MODELS, "languages": LANGUAGE_CODES}
 
 
 def load_audio(file: BinaryIO, encode=True, sr: int = SAMPLE_RATE):
